@@ -28,7 +28,7 @@ def slam(p0, p1):
         mask=None,
     )
 
-    _, R, t, mask, point_4d_hom = cv.recoverPose(
+    _, _, t, _, _ = cv.recoverPose(
         E=E,
         points1=p0,
         points2=p1,
@@ -36,9 +36,7 @@ def slam(p0, p1):
         distanceThresh=1e5,
         mask=mask
     )
-    point_4d = point_4d_hom / point_4d_hom[-1, :]
-    point_3d = point_4d[:3, :].T
-    return R, t, point_3d[mask[:, 0] != 0]
+    return t
 
 
 def get_center_of_motion(t):
@@ -70,7 +68,7 @@ def get_matches_lk(old_frame, frame):
         blockSize=5,
         mask=roi_mask
     )
-    # p0 = p0[p0[:, 0, 1] < 600]  # Mask points on the hood of the car
+
     p1, status, _ = cv.calcOpticalFlowPyrLK(
         prevImg=old_frame,
         nextImg=frame,
@@ -126,9 +124,11 @@ if __name__ == "__main__":
             break
 
         try:
+            frame = cv.circle(frame, angles_to_com(yaw_pitch_labels[n_frame]), radius=5, color=(255, 255, 255), thickness=-1)
+            
             p0, p1 = get_matches_lk(old_frame, frame)
 
-            R, t, points_3 = slam(p0, p1)
+            t = slam(p0, p1)
             yaw_pitch = get_center_of_motion(t)
 
             if smoothed is None:
@@ -159,6 +159,7 @@ if __name__ == "__main__":
 
         except Exception:
             preds.append(np.array([np.nan, np.nan]))
+            # pass
 
         # Display the frame
         cv.imshow('frame', frame)
@@ -170,5 +171,5 @@ if __name__ == "__main__":
         old_frame = frame
         n_frame += 1
 
-    np.savetxt(f"pred/{scene}.txt", np.flip(np.stack(preds[:1] + preds), axis=-1))
+    np.savetxt(f"output/{scene}.txt", np.flip(np.stack(preds[:1] + preds), axis=-1))
     cv.destroyAllWindows()
