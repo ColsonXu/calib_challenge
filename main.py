@@ -51,7 +51,7 @@ def get_center_of_motion(t):
     return np.clip(np.array([yaw, pitch]), a_min=(-MAX_YAW, -MAX_PITCH), a_max=(MAX_YAW, MAX_PITCH))
 
 
-def get_matches_lk(old_frame, frame):
+def get_matches_lk(old_frame, frame, webcam=False):
     # Get the frame dimensions
     height, width = frame.shape[:2]
 
@@ -71,7 +71,7 @@ def get_matches_lk(old_frame, frame):
         qualityLevel=0.001,
         minDistance=20,
         blockSize=5,
-        mask=roi_mask
+        mask=None if webcam else roi_mask
     )
 
     p1, status, _ = cv.calcOpticalFlowPyrLK(
@@ -261,7 +261,7 @@ class MainWindow(QWidget):
 
         try:
             # track features across frames
-            p0, p1, flow_frame = get_matches_lk(self.webcam_old_frame, frame)
+            p0, p1, flow_frame = get_matches_lk(self.webcam_old_frame, frame, True)
 
             # run SLAM on tracking result and get center of motion
             t = slam(p0, p1)
