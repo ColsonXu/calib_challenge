@@ -235,10 +235,10 @@ class MainWindow(QWidget):
             return
 
         ret, frame = self.cap.read()
+        if cv.waitKey(1) == "q":
+            return
         # Resize the frame to the desired size
         self.webcam_old_frame = cv.resize(frame, (WIDTH, HEIGHT))
-        cv.imshow("sample", frame)
-        time.sleep(5)
 
         if not ret:
             print("Failed to read frame from webcam")
@@ -386,14 +386,9 @@ class MainWindow(QWidget):
 
 
 if __name__ == "__main__":
-    # app = QApplication([])
-    # app.setStyle("Fusion")
+    app = QApplication([])
+    app.setStyle("Fusion")
 
-    # window = MainWindow()
-    # window.show()
-    # app.exec_()
-    cap = cv.VideoCapture(-1)
-    while True:
-        _, frame = cap.read()
-        cv.imshow("webcam", frame)
-        time.sleep(1)
+    window = MainWindow()
+    window.show()
+    app.exec_()
