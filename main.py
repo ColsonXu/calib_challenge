@@ -111,6 +111,17 @@ class MainWindow(QWidget):
         self.setAutoFillBackground(True)
         self.setPalette(palette)
 
+        self.title_label = QLabel("Visual Odometry")
+        self.title_label.setStyleSheet("""
+            QLabel {
+                color: white;
+                font-size: 36px;
+                font-weight: bold;
+                margin-bottom: 20px;
+            }
+        """)
+        self.title_label.setAlignment(Qt.AlignCenter)
+
         self.file_label = QLabel("No file selected")
         self.file_label.setStyleSheet("color: white; font-size: 16px;")
 
@@ -166,6 +177,7 @@ class MainWindow(QWidget):
         layout = QVBoxLayout()
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(20)
+        layout.addWidget(self.title_label)
         layout.addLayout(display_layout)
         layout.addLayout(file_layout)
         self.setLayout(layout)
