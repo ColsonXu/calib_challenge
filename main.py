@@ -1,5 +1,6 @@
 import numpy as np
 import cv2 as cv
+import time
 import sys
 from PyQt5 import QtWidgets
 from PyQt5.QtWidgets import QFileDialog, QLabel, QVBoxLayout, QHBoxLayout, QPushButton, QWidget, QApplication, QSizePolicy
@@ -213,7 +214,7 @@ class MainWindow(QWidget):
             try:
                 if labeled:
                     # draw label
-                    frame = cv.circle(frame, angles_to_com(yaw_pitch_labels[n_frame]), radius=5, color=(255, 255, 255), thickness=-1)
+                    frame = cv.circle(frame, angles_to_com(yaw_pitch_labels[n_frame]), radius=10, color=(255, 255, 255), thickness=-1)
 
                 # track features across frames
                 p0, p1, flow_frame = get_matches_lk(old_frame, frame)
@@ -239,13 +240,13 @@ class MainWindow(QWidget):
                     cv.putText(frame, f"GT Pitch: {yaw_pitch_labels[n_frame][1]:.4f}", (10, 120), cv.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
 
                     # Draw ground truth center of motion on the frame
-                    cv.circle(frame, angles_to_com(yaw_pitch_labels[n_frame]), radius=5, color=(255, 255, 255), thickness=-1)
+                    cv.circle(frame, angles_to_com(yaw_pitch_labels[n_frame]), radius=10, color=(255, 255, 255), thickness=-1)
 
                 # Draw principal point on the frame
-                cv.circle(frame, PP.astype(int), radius=5, color=(0, 0, 255), thickness=-1)
+                cv.circle(frame, PP.astype(int), radius=10, color=(0, 0, 255), thickness=-1)
 
                 # Draw predicted center of motion on the frame
-                cv.circle(frame, angles_to_com(smoothed), radius=5, color=(255, 255, 0), thickness=-1)
+                cv.circle(frame, angles_to_com(smoothed), radius=10, color=(255, 255, 0), thickness=-1)
 
             except Exception:
                 preds.append(np.array([np.nan, np.nan]))
@@ -264,6 +265,8 @@ class MainWindow(QWidget):
 
             old_frame = frame
             n_frame += 1
+
+            time.sleep(0.015)
 
         np.savetxt(f"output/{scene}.txt", np.flip(np.stack(preds[:1] + preds), axis=-1))
 
