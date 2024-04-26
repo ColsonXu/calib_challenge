@@ -175,26 +175,16 @@ class MainWindow(QWidget):
         self.result_label.setAlignment(Qt.AlignCenter)
         self.result_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
-        self.result_caption = QLabel("Result")
-        self.result_caption.setStyleSheet("color: white; font-size: 16px;")
-        self.result_caption.setAlignment(Qt.AlignCenter)
-
         self.optical_flow_label = QLabel()
         self.optical_flow_label.setAlignment(Qt.AlignCenter)
         self.optical_flow_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
-        self.optical_flow_caption = QLabel("Optical Flow")
-        self.optical_flow_caption.setStyleSheet("color: white; font-size: 16px;")
-        self.optical_flow_caption.setAlignment(Qt.AlignCenter)
-
         result_layout = QVBoxLayout()
         result_layout.addWidget(self.result_label)
-        result_layout.addWidget(self.result_caption)
         result_layout.setSpacing(5)
 
         optical_flow_layout = QVBoxLayout()
         optical_flow_layout.addWidget(self.optical_flow_label)
-        optical_flow_layout.addWidget(self.optical_flow_caption)
         optical_flow_layout.setSpacing(5)
 
         display_layout = QHBoxLayout()
