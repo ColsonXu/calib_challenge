@@ -5,7 +5,7 @@ import sys
 from PyQt5 import QtWidgets
 from PyQt5.QtWidgets import QFileDialog, QLabel, QVBoxLayout, QHBoxLayout, QPushButton, QWidget, QApplication, QSizePolicy
 from PyQt5.QtGui import QImage, QPixmap, QPalette, QColor
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QTimer
 
 HEIGHT = 874
 WIDTH = 1164
@@ -116,7 +116,7 @@ class MainWindow(QWidget):
         self.title_label.setStyleSheet("""
             QLabel {
                 color: white;
-                font-size: 36px;
+                font-size: 24px;
                 font-weight: bold;
                 margin-bottom: 20px;
             }
@@ -141,6 +141,21 @@ class MainWindow(QWidget):
             }
         """)
 
+        self.webcam_button = QPushButton("Open Webcam")
+        self.webcam_button.clicked.connect(self.open_webcam)
+        self.webcam_button.setStyleSheet("""
+            QPushButton {
+                background-color: #2196F3;
+                color: white;
+                font-size: 16px;
+                padding: 10px 20px;
+                border-radius: 5px;
+            }
+            QPushButton:hover {
+                background-color: #1976D2;
+            }
+        """)
+
         self.close_button = QPushButton("Close")
         self.close_button.clicked.connect(self.close)
         self.close_button.setStyleSheet("""
@@ -160,18 +175,37 @@ class MainWindow(QWidget):
         self.result_label.setAlignment(Qt.AlignCenter)
         self.result_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
+        self.result_caption = QLabel("Result")
+        self.result_caption.setStyleSheet("color: white; font-size: 16px;")
+        self.result_caption.setAlignment(Qt.AlignCenter)
+
         self.optical_flow_label = QLabel()
         self.optical_flow_label.setAlignment(Qt.AlignCenter)
         self.optical_flow_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
+        self.optical_flow_caption = QLabel("Optical Flow")
+        self.optical_flow_caption.setStyleSheet("color: white; font-size: 16px;")
+        self.optical_flow_caption.setAlignment(Qt.AlignCenter)
+
+        result_layout = QVBoxLayout()
+        result_layout.addWidget(self.result_label)
+        result_layout.addWidget(self.result_caption)
+        result_layout.setSpacing(5)
+
+        optical_flow_layout = QVBoxLayout()
+        optical_flow_layout.addWidget(self.optical_flow_label)
+        optical_flow_layout.addWidget(self.optical_flow_caption)
+        optical_flow_layout.setSpacing(5)
+
         display_layout = QHBoxLayout()
         display_layout.setSpacing(20)
-        display_layout.addWidget(self.result_label)
-        display_layout.addWidget(self.optical_flow_label)
+        display_layout.addLayout(result_layout)
+        display_layout.addLayout(optical_flow_layout)
 
         file_layout = QHBoxLayout()
         file_layout.addWidget(self.file_label)
         file_layout.addWidget(self.upload_button)
+        file_layout.addWidget(self.webcam_button)
         file_layout.addWidget(self.close_button)
         file_layout.setAlignment(Qt.AlignCenter)
 
@@ -183,12 +217,84 @@ class MainWindow(QWidget):
         layout.addLayout(file_layout)
         self.setLayout(layout)
 
+        self.webcam_smoothed = None
+        self.webcam_timer = QTimer()
+        self.webcam_timer.timeout.connect(self.process_webcam_frame)
+
     def upload_file(self):
         file_dialog = QFileDialog()
-        file_path, _ = file_dialog.getOpenFileName(self, "Select Image File")
+        file_path, _ = file_dialog.getOpenFileName(self, "Select Video File")
         if file_path:
             self.file_label.setText(file_path)
             self.process_file(file_path)
+
+    def open_webcam(self):
+        self.cap = cv.VideoCapture(0)  # Open the default webcam
+        if not self.cap.isOpened():
+            print("Failed to open webcam")
+            return
+
+        ret, frame = self.cap.read()
+        # Resize the frame to the desired size
+        self.webcam_old_frame = cv.resize(frame, (WIDTH, HEIGHT))
+        cv.imshow("sample", frame)
+        time.sleep(5)
+
+        if not ret:
+            print("Failed to read frame from webcam")
+            self.cap.release()
+            self.cap = None
+            return
+
+        self.webcam_timer.start(30)  # Process frames every 30 milliseconds
+
+    def process_webcam_frame(self):
+        ret, frame = self.cap.read()
+        if not ret:
+            self.webcam_timer.stop()
+            self.cap.release()
+            self.cap = None
+            return
+
+        # Resize the frame to the desired size
+        frame = cv.resize(frame, (WIDTH, HEIGHT))
+
+        try:
+            # track features across frames
+            p0, p1, flow_frame = get_matches_lk(self.webcam_old_frame, frame)
+
+            # run SLAM on tracking result and get center of motion
+            t = slam(p0, p1)
+            yaw_pitch = get_center_of_motion(t)
+
+            if self.webcam_smoothed is None:
+                self.webcam_smoothed = yaw_pitch
+            else:
+                self.webcam_smoothed = (0.9 * self.webcam_smoothed) + (0.1 * yaw_pitch)
+
+            # Draw predicted angles on the frame
+            cv.putText(frame, f"Yaw: {yaw_pitch[0]:.4f}", (10, 30), cv.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+            cv.putText(frame, f"Pitch: {yaw_pitch[1]:.4f}", (10, 60), cv.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+
+            # Draw principal point on the frame
+            cv.circle(frame, PP.astype(int), radius=10, color=(0, 0, 255), thickness=-1)
+
+            # Draw predicted center of motion on the frame
+            cv.circle(frame, angles_to_com(self.webcam_smoothed), radius=10, color=(255, 255, 0), thickness=-1)
+
+            self.webcam_old_frame = frame
+        except Exception as e:
+            print(e)
+
+        # Display the frame in the result label
+        frame_rgb = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
+        frame_image = QImage(frame_rgb.data, frame_rgb.shape[1], frame_rgb.shape[0], QImage.Format_RGB888)
+        self.result_label.setPixmap(QPixmap.fromImage(frame_image).scaled(self.result_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
+
+        # Display the optical flow frame in the optical flow label
+        flow_frame_rgb = cv.cvtColor(flow_frame, cv.COLOR_BGR2RGB)
+        flow_frame_image = QImage(flow_frame_rgb.data, flow_frame_rgb.shape[1], flow_frame_rgb.shape[0], QImage.Format_RGB888)
+        self.optical_flow_label.setPixmap(QPixmap.fromImage(flow_frame_image).scaled(self.optical_flow_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
 
     def process_file(self, file_path):
         scene = file_path.split("/")[-1].split(".")[0]
@@ -271,14 +377,23 @@ class MainWindow(QWidget):
         np.savetxt(f"output/{scene}.txt", np.flip(np.stack(preds[:1] + preds), axis=-1))
 
     def closeEvent(self, event):
+        if self.webcam_timer.isActive():
+            self.webcam_timer.stop()
+        if self.cap is not None:
+            self.cap.release()
         QtWidgets.QApplication.quit()
         sys.exit(0)
 
 
 if __name__ == "__main__":
-    app = QApplication([])
-    app.setStyle("Fusion")
+    # app = QApplication([])
+    # app.setStyle("Fusion")
 
-    window = MainWindow()
-    window.show()
-    app.exec_()
+    # window = MainWindow()
+    # window.show()
+    # app.exec_()
+    cap = cv.VideoCapture(-1)
+    while True:
+        _, frame = cap.read()
+        cv.imshow("webcam", frame)
+        time.sleep(1)
