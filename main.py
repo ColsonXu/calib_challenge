@@ -235,7 +235,7 @@ class MainWindow(QWidget):
             return
 
         ret, frame = self.cap.read()
-        if cv.waitKey(0) == "q":
+        if cv.waitKey(1) == "q":
             return
         # Resize the frame to the desired size
         self.webcam_old_frame = cv.resize(frame, (WIDTH, HEIGHT))
@@ -246,7 +246,7 @@ class MainWindow(QWidget):
             self.cap = None
             return
 
-        self.webcam_timer.start(10)  # Process frames every 30 milliseconds
+        self.webcam_timer.start(15)  # Process frames every 30 milliseconds
 
     def process_webcam_frame(self):
         ret, frame = self.cap.read()
