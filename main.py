@@ -67,9 +67,9 @@ def get_matches_lk(old_frame, frame, webcam=False):
 
     p0 = cv.goodFeaturesToTrack(
         cv.cvtColor(old_frame, cv.COLOR_BGR2GRAY),
-        maxCorners=1000,
-        qualityLevel=0.001,
-        minDistance=20,
+        maxCorners=5000,
+        qualityLevel=0.0001,
+        minDistance=10,
         blockSize=5,
         mask=None if webcam else roi_mask
     )
@@ -91,7 +91,7 @@ def get_matches_lk(old_frame, frame, webcam=False):
     for (x1, y1), (x2, y2) in zip(p0[status == 1].reshape(-1, 2), p1[status == 1].reshape(-1, 2)):
         x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
         cv.line(flow_frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-        cv.circle(flow_frame, (x2, y2), 3, (0, 255, 0), -1)
+        cv.circle(flow_frame, (x2, y2), 1, (0, 255, 0), -1)
 
     return p0[status == 1], p1[status == 1], flow_frame
 
@@ -228,7 +228,13 @@ class MainWindow(QWidget):
         if cv.waitKey(1) == "q":
             return
         # Resize the frame to the desired size
-        self.webcam_old_frame = cv.resize(frame, (WIDTH, HEIGHT))
+        # Calculate the scaling factors to fit the frame within the desired dimensions
+        fx = WIDTH / frame.shape[1]
+        fy = HEIGHT / frame.shape[0]
+        scale = min(fx, fy)
+
+        # Resize the frame while retaining the aspect ratio
+        self.webcam_old_frame = cv.resize(frame, None, fx=scale, fy=scale)
 
         if not ret:
             print("Failed to read frame from webcam")
@@ -246,40 +252,24 @@ class MainWindow(QWidget):
             self.cap = None
             return
 
-        # Resize the frame to the desired size
-        frame = cv.resize(frame, (WIDTH, HEIGHT))
+        # Calculate the scaling factors to fit the frame within the desired dimensions
+        fx = WIDTH / frame.shape[1]
+        fy = HEIGHT / frame.shape[0]
+        scale = min(fx, fy)
+
+        # Resize the frame while retaining the aspect ratio
+        frame = cv.resize(frame, None, fx=scale, fy=scale)
 
         try:
             # track features across frames
-            p0, p1, flow_frame = get_matches_lk(self.webcam_old_frame, frame, True)
-
-            # run SLAM on tracking result and get center of motion
-            t = slam(p0, p1)
-            yaw_pitch = get_center_of_motion(t)
-
-            if self.webcam_smoothed is None:
-                self.webcam_smoothed = yaw_pitch
-            else:
-                self.webcam_smoothed = (0.9 * self.webcam_smoothed) + (0.1 * yaw_pitch)
-
-            # Draw predicted angles on the frame
-            cv.putText(frame, f"Yaw: {yaw_pitch[0]:.4f}", (10, 30), cv.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-            cv.putText(frame, f"Pitch: {yaw_pitch[1]:.4f}", (10, 60), cv.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-
-            # Draw principal point on the frame
-            cv.circle(frame, PP.astype(int), radius=10, color=(0, 0, 255), thickness=-1)
-
-            # Draw predicted center of motion on the frame
-            cv.circle(frame, angles_to_com(self.webcam_smoothed), radius=10, color=(255, 255, 0), thickness=-1)
+            _, _, flow_frame = get_matches_lk(self.webcam_old_frame, frame, True)
 
             self.webcam_old_frame = frame
         except Exception as e:
             print(e)
 
-        # Display the frame in the result label
-        frame_rgb = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
-        frame_image = QImage(frame_rgb.data, frame_rgb.shape[1], frame_rgb.shape[0], QImage.Format_RGB888)
-        self.result_label.setPixmap(QPixmap.fromImage(frame_image).scaled(self.result_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        # Hide the result label
+        self.result_label.setVisible(False)
 
         # Display the optical flow frame in the optical flow label
         flow_frame_rgb = cv.cvtColor(flow_frame, cv.COLOR_BGR2RGB)
