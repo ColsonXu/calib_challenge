@@ -22,7 +22,9 @@ for i in range(5):
     zero_mses.append(get_mse(gt, np.zeros_like(gt)))
 
     test = np.loadtxt(TEST_DIR + str(i) + '.txt')
-    mses.append(get_mse(gt, test))
+    mse = get_mse(gt, test)
+    mses.append(mse)
+    print(f"{i}: {mse:.6f}")
 
 percent_err_vs_all_zeros = 100 * np.mean(mses) / np.mean(zero_mses)
 print(f'YOUR ERROR SCORE IS {percent_err_vs_all_zeros:.2f}% (lower is better)')

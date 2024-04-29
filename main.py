@@ -59,7 +59,7 @@ def get_matches_lk(old_frame, frame, webcam=False):
     roi_left = 200
     roi_right = width - 150
     roi_top = 200
-    roi_bottom = height - 350
+    roi_bottom = height - 250
 
     # Create a mask for the ROI
     roi_mask = np.zeros_like(old_frame[:, :, 0], dtype=np.uint8)
@@ -68,7 +68,7 @@ def get_matches_lk(old_frame, frame, webcam=False):
     p0 = cv.goodFeaturesToTrack(
         cv.cvtColor(old_frame, cv.COLOR_BGR2GRAY),
         maxCorners=5000,
-        qualityLevel=0.0001,
+        qualityLevel=0.0005,
         minDistance=10,
         blockSize=5,
         mask=None if webcam else roi_mask
@@ -242,7 +242,7 @@ class MainWindow(QWidget):
             self.cap = None
             return
 
-        self.webcam_timer.start(15)  # Process frames every 30 milliseconds
+        self.webcam_timer.start(15)  # Process frames every 15 milliseconds
 
     def process_webcam_frame(self):
         ret, frame = self.cap.read()
@@ -297,10 +297,13 @@ class MainWindow(QWidget):
             if not ret:
                 break
 
+            # Create a copy of the frame for displaying annotations
+            display_frame = frame.copy()
+
             try:
                 if labeled:
-                    # draw label
-                    frame = cv.circle(frame, angles_to_com(yaw_pitch_labels[n_frame]), radius=10, color=(255, 255, 255), thickness=-1)
+                    # draw label on the display frame
+                    display_frame = cv.circle(display_frame, angles_to_com(yaw_pitch_labels[n_frame]), radius=10, color=(255, 255, 255), thickness=-1)
 
                 # track features across frames
                 p0, p1, flow_frame = get_matches_lk(old_frame, frame)
@@ -316,43 +319,44 @@ class MainWindow(QWidget):
 
                 preds.append(smoothed)
 
-                # Draw predicted angles on the frame
-                cv.putText(frame, f"Yaw: {smoothed[0]:.4f}", (10, 30), cv.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-                cv.putText(frame, f"Pitch: {smoothed[1]:.4f}", (10, 60), cv.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                # Draw predicted angles on the display frame
+                cv.putText(display_frame, f"Yaw: {smoothed[0]:.4f}", (10, 30), cv.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                cv.putText(display_frame, f"Pitch: {smoothed[1]:.4f}", (10, 60), cv.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
 
                 if labeled:
-                    # Draw ground truth angles on the frame
-                    cv.putText(frame, f"GT Yaw: {yaw_pitch_labels[n_frame][0]:.4f}", (10, 90), cv.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
-                    cv.putText(frame, f"GT Pitch: {yaw_pitch_labels[n_frame][1]:.4f}", (10, 120), cv.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
+                    # Draw ground truth angles on the display frame
+                    cv.putText(display_frame, f"GT Yaw: {yaw_pitch_labels[n_frame][0]:.4f}", (10, 90), cv.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
+                    cv.putText(display_frame, f"GT Pitch: {yaw_pitch_labels[n_frame][1]:.4f}", (10, 120), cv.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
 
-                    # Draw ground truth center of motion on the frame
-                    cv.circle(frame, angles_to_com(yaw_pitch_labels[n_frame]), radius=10, color=(255, 255, 255), thickness=-1)
+                    # Draw ground truth center of motion on the display frame
+                    cv.circle(display_frame, angles_to_com(yaw_pitch_labels[n_frame]), radius=10, color=(255, 255, 255), thickness=-1)
 
-                # Draw principal point on the frame
-                cv.circle(frame, PP.astype(int), radius=10, color=(0, 0, 255), thickness=-1)
+                # Draw principal point on the display frame
+                cv.circle(display_frame, PP.astype(int), radius=10, color=(0, 0, 255), thickness=-1)
 
-                # Draw predicted center of motion on the frame
-                cv.circle(frame, angles_to_com(smoothed), radius=10, color=(255, 255, 0), thickness=-1)
+                # Draw predicted center of motion on the display frame
+                cv.circle(display_frame, angles_to_com(smoothed), radius=10, color=(255, 255, 0), thickness=-1)
 
             except Exception:
                 preds.append(np.array([np.nan, np.nan]))
 
-            # Display the frame in the result label
-            frame_rgb = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
-            frame_image = QImage(frame_rgb.data, frame_rgb.shape[1], frame_rgb.shape[0], QImage.Format_RGB888)
-            self.result_label.setPixmap(QPixmap.fromImage(frame_image).scaled(self.result_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
-
+            # Display the display frame in the result label
+            display_frame_rgb = cv.cvtColor(display_frame, cv.COLOR_BGR2RGB)
+            display_frame_image = QImage(display_frame_rgb.data, display_frame_rgb.shape[1], display_frame_rgb.shape[0], QImage.Format_RGB888)
+            self.result_label.setPixmap(QPixmap.fromImage(display_frame_image).scaled(self.result_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            
             # Display the optical flow frame in the optical flow label
             flow_frame_rgb = cv.cvtColor(flow_frame, cv.COLOR_BGR2RGB)
             flow_frame_image = QImage(flow_frame_rgb.data, flow_frame_rgb.shape[1], flow_frame_rgb.shape[0], QImage.Format_RGB888)
             self.optical_flow_label.setPixmap(QPixmap.fromImage(flow_frame_image).scaled(self.optical_flow_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
+
 
             QtWidgets.QApplication.processEvents()
 
             old_frame = frame
             n_frame += 1
 
-            time.sleep(0.015)
+            time.sleep(0.001)
 
         np.savetxt(f"output/{scene}.txt", np.flip(np.stack(preds[:1] + preds), axis=-1))
 
